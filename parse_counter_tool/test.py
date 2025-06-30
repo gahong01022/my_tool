@@ -21,6 +21,43 @@ class NetworkCounterParser:
         self.host_mac_rx = tk.StringVar()
         
         self.setup_ui()
+    
+    def hex_to_decimal(self, value_str):
+        """將16進位字符串轉換為10進位數字，如果不是16進位則直接返回原數字"""
+        if not value_str:
+            return 0
+        
+        value_str = value_str.strip()
+        
+        # 檢查是否為16進位格式 (0x... 或 0X...)
+        if value_str.lower().startswith('0x'):
+            try:
+                return int(value_str, 16)
+            except ValueError:
+                return 0
+        else:
+            # 嘗試解析為10進位數字
+            try:
+                return int(value_str)
+            except ValueError:
+                return 0
+    
+    def format_display_value(self, value_str):
+        """格式化顯示值，如果是16進位則顯示轉換結果"""
+        if not value_str:
+            return "0"
+        
+        value_str = value_str.strip()
+        
+        # 檢查是否為16進位格式
+        if value_str.lower().startswith('0x'):
+            try:
+                decimal_value = int(value_str, 16)
+                return f"{decimal_value}\n({value_str})"
+            except ValueError:
+                return "0"
+        else:
+            return value_str or "0"
         
     def setup_ui(self):
         # 主框架
@@ -104,13 +141,13 @@ class NetworkCounterParser:
         input_frame = ttk.Frame(parent)
         input_frame.grid(row=1, column=0, pady=(10, 0))
         
-        ttk.Label(input_frame, text="HOST MAC Counters:").grid(row=0, column=0, columnspan=4, pady=(0, 5))
+        ttk.Label(input_frame, text="HOST MAC Counters (支援16進位 0x...):").grid(row=0, column=0, columnspan=4, pady=(0, 5))
         
         ttk.Label(input_frame, text="TX:").grid(row=1, column=0, padx=(0, 5))
-        ttk.Entry(input_frame, textvariable=self.host_mac_tx, width=15).grid(row=1, column=1, padx=(0, 20))
+        ttk.Entry(input_frame, textvariable=self.host_mac_tx, width=20).grid(row=1, column=1, padx=(0, 20))
         
         ttk.Label(input_frame, text="RX:").grid(row=1, column=2, padx=(0, 5))
-        ttk.Entry(input_frame, textvariable=self.host_mac_rx, width=15).grid(row=1, column=3)
+        ttk.Entry(input_frame, textvariable=self.host_mac_rx, width=20).grid(row=1, column=3)
         
         ttk.Button(input_frame, text="更新流程圖", command=self.draw_flow_chart).grid(row=1, column=4, padx=(20, 0))
         
@@ -139,11 +176,12 @@ class NetworkCounterParser:
             fcm_data = self.parsed_data.get('FCM', {})
             if 'Tx to Line side_S' in key:
                 rx_system_s = self.get_counter_value('FCM', 'Rx from System side_S')
-                mac_tx = self.get_counter_value('MAC', 'Tx from System side')
-                return value != rx_system_s or value != mac_tx
+                ls_before_tx_s = self.get_counter_value('LS', '[Before EF] Tx to Line side_S')
+                return value != rx_system_s or value != ls_before_tx_s
             elif 'Tx to Line side_T' in key:
                 rx_system_t = self.get_counter_value('FCM', 'Rx from System side_T')
-                return value != rx_system_t
+                ls_before_tx_t = self.get_counter_value('LS', '[Before EF] Tx to Line side_T')
+                return value != rx_system_t or value != ls_before_tx_t
             elif 'Rx from System side_S' in key:
                 ss_rx_start = self.get_counter_value('SS', 'Rx Start')
                 return value != ss_rx_start
@@ -158,19 +196,22 @@ class NetworkCounterParser:
         elif counter_type == 'ASIX MAC':
             if 'Tx Error from System side' in key:
                 return value != 0
-            elif 'Tx from System side' in key:
-                fcm_tx_line_s = self.get_counter_value('FCM', 'Tx to Line side_S')
-                ls_before_tx_s = self.get_counter_value('LS', '[Before EF] Tx to Line side_S')
-                return value != fcm_tx_line_s or value != ls_before_tx_s
                 
         elif counter_type == 'LS':
             if '[Before EF] Tx to Line side_S' in key:
-                mac_tx = self.get_counter_value('MAC', 'Tx from System side')
+                tx_line_s = self.get_counter_value('FCM', 'Tx to Line side_S')
                 ls_after_tx_s = self.get_counter_value('LS', '[After EF] Tx to Line side_S')
-                return value != mac_tx or value != ls_after_tx_s
+                return value != tx_line_s or value != ls_after_tx_s
             elif '[Before EF] Tx to Line side_T' in key:
+                tx_line_t = self.get_counter_value('FCM', 'Tx to Line side_T')
                 ls_after_tx_t = self.get_counter_value('LS', '[After EF] Tx to Line side_T')
-                return value != ls_after_tx_t
+                return value != tx_line_t or value != ls_after_tx_t
+            elif '[After EF] Tx to Line side_S' in key:
+                ls_before_tx_s = self.get_counter_value('LS', '[Before EF] Tx to Line side_S')
+                return value != ls_before_tx_s 
+            elif '[After EF] Tx to Line side_T' in key:
+                ls_before_tx_t = self.get_counter_value('LS', '[Before EF] Tx to Line side_T')
+                return value != ls_before_tx_t
         
         return False
     
@@ -187,11 +228,12 @@ class NetworkCounterParser:
         elif counter_type == 'FCM':
             if 'Rx from Line side_S' in key:
                 tx_system_s = self.get_counter_value('FCM', 'Tx to System side_S')
-                mac_rx = self.get_counter_value('MAC', 'Rx to System side')
-                return value != tx_system_s or value != mac_rx
+                ls_after_rx_s = self.get_counter_value('LS', '[After EF] Rx from Line side_S')
+                return value != tx_system_s or value != ls_after_rx_s
             elif 'Rx from Line side_T' in key:
                 tx_system_t = self.get_counter_value('FCM', 'Tx to System side_T')
-                return value != tx_system_t
+                ls_after_rx_t = self.get_counter_value('LS', '[After EF] Rx from Line side_T')
+                return value != tx_system_t or value != ls_after_rx_t
             elif 'Tx to System side_S' in key:
                 ss_tx_start = self.get_counter_value('SS', 'Tx Start')
                 rx_line_s = self.get_counter_value('FCM', 'Rx from Line side_S')
@@ -208,16 +250,18 @@ class NetworkCounterParser:
         elif counter_type == 'ASIX MAC':
             if 'Rx Error to System side' in key:
                 return value != 0
-            elif 'Rx to System side' in key:
-                fcm_rx_line_s = self.get_counter_value('FCM', 'Rx from Line side_S')
-                ls_after_rx_s = self.get_counter_value('LS', '[After EF] Rx from Line side_S')
-                return value != fcm_rx_line_s or value != ls_after_rx_s
                 
         elif counter_type == 'LS':
             if '[After EF] Rx from Line side_S' in key:
-                mac_rx = self.get_counter_value('MAC', 'Rx to System side')
+                rx_line_s = self.get_counter_value('FCM', 'Rx from Line side_S')
                 ls_before_rx_s = self.get_counter_value('LS', '[Before EF] Rx from Line side_S')
-                return value != mac_rx or value != ls_before_rx_s
+                return value != rx_line_s or value != ls_before_rx_s
+            elif '[After EF] Rx from Line side_T' in key:
+                ls_before_rx_t = self.get_counter_value('LS', '[Before EF] Rx from Line side_T')
+                return value != ls_before_rx_t
+            elif '[Before EF] Rx from Line side_S' in key:
+                ls_after_rx_s = self.get_counter_value('LS', '[After EF] Rx from Line side_S')
+                return value != ls_after_rx_s 
             elif '[Before EF] Rx from Line side_T' in key:
                 ls_after_rx_t = self.get_counter_value('LS', '[After EF] Rx from Line side_T')
                 return value != ls_after_rx_t
@@ -240,7 +284,7 @@ class NetworkCounterParser:
         box_width = 210
         box_height = 120
         host_mac_width = 120
-        host_mac_height = 80
+        host_mac_height = 100  # 增加高度以容納兩行文字
         
         # 計算水平間距
         total_boxes_width = host_mac_width + 4 * box_width
@@ -271,25 +315,35 @@ class NetworkCounterParser:
         self.canvas.create_rectangle(host_mac_x, host_mac_y_tx, 
                                    host_mac_x + host_mac_width, host_mac_y_tx + host_mac_height,
                                    fill='#F0F0F0', outline='#333333', width=3)
-        self.canvas.create_text(host_mac_x + host_mac_width // 2, host_mac_y_tx + 20,
+        self.canvas.create_text(host_mac_x + host_mac_width // 2, host_mac_y_tx + 15,
                               text="HOST MAC", font=('Arial', 10, 'bold'), fill='#333333')
-        self.canvas.create_text(host_mac_x + host_mac_width // 2, host_mac_y_tx + 35,
+        self.canvas.create_text(host_mac_x + host_mac_width // 2, host_mac_y_tx + 30,
                               text="TX", font=('Arial', 9, 'bold'), fill='#333333')
-        tx_value = self.host_mac_tx.get() or "0"
-        self.canvas.create_text(host_mac_x + host_mac_width // 2, host_mac_y_tx + 50,
-                              text=tx_value, font=('Arial', 9), fill='#333333')
+        
+        # 顯示轉換後的TX值
+        tx_display = self.format_display_value(self.host_mac_tx.get())
+        # 分行顯示
+        tx_lines = tx_display.split('\n')
+        for i, line in enumerate(tx_lines):
+            self.canvas.create_text(host_mac_x + host_mac_width // 2, host_mac_y_tx + 45 + i * 12,
+                                  text=line, font=('Arial', 8), fill='#333333')
         
         # RX 方向
         self.canvas.create_rectangle(host_mac_x, host_mac_y_rx, 
                                    host_mac_x + host_mac_width, host_mac_y_rx + host_mac_height,
                                    fill='#F0F0F0', outline='#333333', width=3)
-        self.canvas.create_text(host_mac_x + host_mac_width // 2, host_mac_y_rx + 20,
+        self.canvas.create_text(host_mac_x + host_mac_width // 2, host_mac_y_rx + 15,
                               text="HOST MAC", font=('Arial', 10, 'bold'), fill='#333333')
-        self.canvas.create_text(host_mac_x + host_mac_width // 2, host_mac_y_rx + 35,
+        self.canvas.create_text(host_mac_x + host_mac_width // 2, host_mac_y_rx + 30,
                               text="RX", font=('Arial', 9, 'bold'), fill='#333333')
-        rx_value = self.host_mac_rx.get() or "0"
-        self.canvas.create_text(host_mac_x + host_mac_width // 2, host_mac_y_rx + 50,
-                              text=rx_value, font=('Arial', 9), fill='#333333')
+        
+        # 顯示轉換後的RX值
+        rx_display = self.format_display_value(self.host_mac_rx.get())
+        # 分行顯示
+        rx_lines = rx_display.split('\n')
+        for i, line in enumerate(rx_lines):
+            self.canvas.create_text(host_mac_x + host_mac_width // 2, host_mac_y_rx + 45 + i * 12,
+                                  text=line, font=('Arial', 8), fill='#333333')
         
         # 繪製其他計數器框
         for i, (counter_type, color, border_color) in enumerate(zip(counter_types, colors, border_colors)):
@@ -495,10 +549,6 @@ class NetworkCounterParser:
 | Rx from Line side_T        :000667583 |
 | Tx to System side_S        :000667583 |
 | Tx to System side_T        :000667583 |
-| Rx from System side_S      :000703812 |
-| Rx from System side_T      :000703812 |
-| Tx to Line side_S          :000703812 |
-| Tx to Line side_T          :000703812 |
 | Rx from System side_S      :000703812 |
 | Rx from System side_T      :000703812 |
 | Tx to Line side_S          :000703812 |
