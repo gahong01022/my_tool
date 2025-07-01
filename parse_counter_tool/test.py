@@ -165,29 +165,23 @@ class NetworkCounterParser:
     def check_tx_validation_rules(self, counter_type, key, value):
         """檢查TX方向的驗證規則，返回是否應該顯示為紅色"""
         if counter_type == 'SS':
-            if 'Rx Start' in key:
-                fcm_value = self.get_counter_value('FCM', 'Rx from System side_S')
-                return value != fcm_value
-            elif 'Rx Terminal' in key:
-                fcm_value = self.get_counter_value('FCM', 'Rx from System side_T')
+            if 'Rx Terminal' in key:
+                fcm_value = self.get_counter_value('SS', 'Rx Start')
                 return value != fcm_value
                 
         elif counter_type == 'FCM':
-            fcm_data = self.parsed_data.get('FCM', {})
             if 'Tx to Line side_S' in key:
-                rx_system_s = self.get_counter_value('FCM', 'Rx from System side_S')
-                ls_before_tx_s = self.get_counter_value('LS', '[Before EF] Tx to Line side_S')
-                return value != rx_system_s or value != ls_before_tx_s
-            elif 'Tx to Line side_T' in key:
                 rx_system_t = self.get_counter_value('FCM', 'Rx from System side_T')
-                ls_before_tx_t = self.get_counter_value('LS', '[Before EF] Tx to Line side_T')
-                return value != rx_system_t or value != ls_before_tx_t
+                return value != rx_system_t
+            elif 'Tx to Line side_T' in key:
+                tx_line_s = self.get_counter_value('FCM', 'Tx to Line side_S')
+                return value != tx_line_s
             elif 'Rx from System side_S' in key:
-                ss_rx_start = self.get_counter_value('SS', 'Rx Start')
-                return value != ss_rx_start
-            elif 'Rx from System side_T' in key:
                 ss_rx_terminal = self.get_counter_value('SS', 'Rx Terminal')
                 return value != ss_rx_terminal
+            elif 'Rx from System side_T' in key:
+                rx_system_s = self.get_counter_value('FCM', 'Rx from System side_S')
+                return value != rx_system_s
             elif 'Pause to Line side' in key:
                 return value != 0
             elif 'Pause from System side' in key:
@@ -197,21 +191,9 @@ class NetworkCounterParser:
             if 'Tx Error from System side' in key:
                 return value != 0
                 
-        elif counter_type == 'LS':
-            if '[Before EF] Tx to Line side_S' in key:
-                tx_line_s = self.get_counter_value('FCM', 'Tx to Line side_S')
-                ls_after_tx_s = self.get_counter_value('LS', '[After EF] Tx to Line side_S')
-                return value != tx_line_s or value != ls_after_tx_s
-            elif '[Before EF] Tx to Line side_T' in key:
-                tx_line_t = self.get_counter_value('FCM', 'Tx to Line side_T')
-                ls_after_tx_t = self.get_counter_value('LS', '[After EF] Tx to Line side_T')
-                return value != tx_line_t or value != ls_after_tx_t
-            elif '[After EF] Tx to Line side_S' in key:
-                ls_before_tx_s = self.get_counter_value('LS', '[Before EF] Tx to Line side_S')
-                return value != ls_before_tx_s 
-            elif '[After EF] Tx to Line side_T' in key:
-                ls_before_tx_t = self.get_counter_value('LS', '[Before EF] Tx to Line side_T')
-                return value != ls_before_tx_t
+        #elif counter_type == 'LS':
+            #if '[Before EF] Tx to Line side_S' in key:
+
         
         return False
     
@@ -219,29 +201,22 @@ class NetworkCounterParser:
         """檢查RX方向的驗證規則，返回是否應該顯示為紅色"""
         if counter_type == 'SS':
             if 'Tx Start' in key:
-                fcm_value = self.get_counter_value('FCM', 'Tx to System side_S')
-                return value != fcm_value
+                tx_system_t = self.get_counter_value('FCM', 'Tx to System side_T')
+                return value != tx_system_t
             elif 'Tx Terminal' in key:
-                fcm_value = self.get_counter_value('FCM', 'Tx to System side_T')
-                return value != fcm_value
+                tx_start = self.get_counter_value('SS', 'Tx Start')
+                return value != tx_start
                 
         elif counter_type == 'FCM':
-            if 'Rx from Line side_S' in key:
-                tx_system_s = self.get_counter_value('FCM', 'Tx to System side_S')
-                ls_after_rx_s = self.get_counter_value('LS', '[After EF] Rx from Line side_S')
-                return value != tx_system_s or value != ls_after_rx_s
-            elif 'Rx from Line side_T' in key:
-                tx_system_t = self.get_counter_value('FCM', 'Tx to System side_T')
-                ls_after_rx_t = self.get_counter_value('LS', '[After EF] Rx from Line side_T')
-                return value != tx_system_t or value != ls_after_rx_t
-            elif 'Tx to System side_S' in key:
-                ss_tx_start = self.get_counter_value('SS', 'Tx Start')
+            if 'Rx from Line side_T' in key:
                 rx_line_s = self.get_counter_value('FCM', 'Rx from Line side_S')
-                return value != ss_tx_start or value != rx_line_s
-            elif 'Tx to System side_T' in key:
-                ss_tx_terminal = self.get_counter_value('SS', 'Tx Terminal')
+                return value != rx_line_s
+            elif 'Tx to System side_S' in key:
                 rx_line_t = self.get_counter_value('FCM', 'Rx from Line side_T')
-                return value != ss_tx_terminal or value != rx_line_t
+                return value != rx_line_t
+            elif 'Tx to System side_T' in key:
+                tx_system_s = self.get_counter_value('FCM', 'Tx to System side_S')
+                return value != tx_system_s
             elif 'Pause from Line side' in key:
                 return value != 0
             elif 'Pause to System side' in key:
@@ -251,20 +226,9 @@ class NetworkCounterParser:
             if 'Rx Error to System side' in key:
                 return value != 0
                 
-        elif counter_type == 'LS':
-            if '[After EF] Rx from Line side_S' in key:
-                rx_line_s = self.get_counter_value('FCM', 'Rx from Line side_S')
-                ls_before_rx_s = self.get_counter_value('LS', '[Before EF] Rx from Line side_S')
-                return value != rx_line_s or value != ls_before_rx_s
-            elif '[After EF] Rx from Line side_T' in key:
-                ls_before_rx_t = self.get_counter_value('LS', '[Before EF] Rx from Line side_T')
-                return value != ls_before_rx_t
-            elif '[Before EF] Rx from Line side_S' in key:
-                ls_after_rx_s = self.get_counter_value('LS', '[After EF] Rx from Line side_S')
-                return value != ls_after_rx_s 
-            elif '[Before EF] Rx from Line side_T' in key:
-                ls_after_rx_t = self.get_counter_value('LS', '[After EF] Rx from Line side_T')
-                return value != ls_after_rx_t
+        #elif counter_type == 'LS':
+            #if '[After EF] Rx from Line side_S' in key:
+
         
         return False
     
